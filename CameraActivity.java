@@ -359,4 +359,102 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         return convData;
     }
 
+
+
+
+    // ******************************* CUSTOM FUNCTIONS - FINAL PROJECT *********************************** //
+
+
+    // calculate the coefficient factor for DCT
+    public double coeff(int x) {
+
+        if (x == 0)
+            return 1/Math.sqrt(2);
+
+        else if (x > 0)
+            return 1;
+
+        else
+            return -1;
+    }
+
+    public double[][] DCT(double [][] x) {
+
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        // init dct array
+        double [][] dct = new double[N][N];
+
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                double val = 0;
+
+                for (int m = 0; m < N; m++) {
+                    for (int n = 0; n < N; n++) {
+
+                        double curr_pixel = x[m][n];
+
+                        double cos1 = Math.cos(((2*m+1)*Math.PI*i) / (2*N));
+                        double cos2 = Math.cos(((2*n+1)*Math.PI*j) / (2*N));
+
+                        val += curr_pixel * cos1 * cos2;
+
+                    }
+                }
+
+                val *= 1/Math.sqrt(2*N) * coeff(i) * coeff(j);
+
+                dct[i][j] = val;
+            }
+        }
+
+        return dct;
+    }
+
+    public int [][] scaleQuantTable (int [][] qt, int qf) {
+
+        int N = qt.length;
+
+        double s = (qf < 50) ? 5000/qf:(200 - 2*qf);
+
+        int [][] t = new int [qt.length][qt[0].length];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                t[j][i] = (int)Math.floor((s * qt[j][i] + 50) / 100);
+            }
+        }
+
+        return t;
+
+    }
+
+    public int [][] quantize (double [][] x, int [][] q) {
+
+        // input must be 8x8
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        int [][] B = new int [N][N];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                B[i][j] = (int)Math.round(x[i][j] / q[i][j]);
+            }
+        }
+
+        return B;
+
+    }
+
+
 }
