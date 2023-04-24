@@ -34,12 +34,32 @@ public class ShowActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     private Canvas canvas;
 
+    int[][] QuantTableY = {{16, 11, 10, 16, 24, 40, 51, 61},
+            {12, 12, 14, 19, 26, 58, 60, 55},
+            {14, 13, 16, 24, 40, 57, 69, 56},
+            {14, 17, 22, 29, 51, 87, 80, 62},
+            {18, 22, 37, 56, 68, 109, 103, 77},
+            {24, 35, 55, 64, 81, 104, 113, 92},
+            {49, 64, 78, 87, 103, 121, 120, 101},
+            {72, 92, 95, 98, 112, 100, 103, 99}};
+
+
+    int[][] QuantTableC = {{17, 18, 24, 47, 99, 99, 99, 99},
+            {18, 21, 26, 66, 99, 99, 99, 99},
+            {24, 26, 56, 99, 99, 99, 99, 99},
+            {47, 66, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99}};
+
     Camera.ShutterCallback scb = new Camera.ShutterCallback() {
         public void onShutter() {}
     };
 
     Camera.PictureCallback pcb = new Camera.PictureCallback() {
         public void onPictureTaken(byte[] _data, Camera _camera) {
+                                    /*
             Matrix matrix = new Matrix();
             matrix.postRotate(90);
             int[] data = new int[_data.length];
@@ -47,7 +67,22 @@ public class ShowActivity extends AppCompatActivity implements SurfaceHolder.Cal
             Bitmap bmp = Bitmap.createBitmap(data, width, height, Bitmap.Config.ARGB_8888);
             bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), matrix, true);
             canvas.drawBitmap(bmp, new Rect(0,0, height, width), new Rect(0,0, canvas.getWidth(), canvas.getHeight()),null);
-            surfaceHolder.unlockCanvasAndPost(canvas);
+            surfaceHolder2.unlockCanvasAndPost(canvas);
+
+
+            int[][][] pic = bytes2pic(_data);
+            //pic = process_img(pic, QuantTableY, QuantTableC, 50);
+            byte[] newdata = pic2bytes(pic);
+            int[] rgb = yuv2rgb(newdata);
+
+            // Create ARGB Image, rotate and draw
+            Matrix matrix2 = new Matrix();
+            matrix2.postRotate(90);
+            Bitmap bmp2 = Bitmap.createBitmap(rgb, width, height, Bitmap.Config.ARGB_8888);
+            bmp2 = Bitmap.createBitmap(bmp2, 0, 0, bmp2.getWidth(), bmp2.getHeight(), matrix2, true);
+            canvas.drawBitmap(bmp2, new Rect(0,0, height, width), new Rect(0,0, canvas.getWidth(), canvas.getHeight()),null);
+
+             */
         }
     };
 
@@ -68,6 +103,9 @@ public class ShowActivity extends AppCompatActivity implements SurfaceHolder.Cal
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(this);
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        surfaceView2 = (SurfaceView)findViewById(R.id.ViewHisteq);
+        surfaceHolder2 = surfaceView2.getHolder();
+
     }
 
 
@@ -101,7 +139,7 @@ public class ShowActivity extends AppCompatActivity implements SurfaceHolder.Cal
                         public void onPreviewFrame(byte[] data, Camera camera)
                         {
                             // Lock canvas
-                            // canvas = surfaceHolder2.lockCanvas(null);
+                            //canvas = surfaceHolder2.lockCanvas(null);
                             // Where Callback Happens, camera preview frame ready
                             //onCameraFrame(canvas,data);
                             // Unlock canvas
@@ -129,5 +167,351 @@ public class ShowActivity extends AppCompatActivity implements SurfaceHolder.Cal
             camera = null;
             previewing = false;
         }
+    }
+
+    protected void onCameraFrame(Canvas canvas, byte[] data) {
+
+        Matrix matrix = new Matrix();
+        matrix.postRotate(90);
+        int[] retData = yuv2rgb(data);
+
+        // Create ARGB Image, rotate and draw
+        Bitmap bmp = Bitmap.createBitmap(retData, width, height, Bitmap.Config.ARGB_8888);
+        bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), matrix, true);
+        canvas.drawBitmap(bmp, new Rect(0,0, height, width), new Rect(0,0, canvas.getWidth(), canvas.getHeight()),null);
+    }
+
+    public int[][][] bytes2pic(byte[] data) {
+        int[][][] pic = new int[3][height][width];
+        for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
+            pic[0][y][x] = data[width*y+x];
+        }
+        for (int y = 0; y < height/2; ++y) for (int x = 0; x < width/2; ++x) {
+            int i = 2*x;
+            int j = 2*y;
+            pic[1][j][i] = data[width*height+width/2*y+x];
+            pic[1][j+1][i] = data[width*height+width/2*y+x];
+            pic[1][j][i+1] = data[width*height+width/2*y+x];
+            pic[1][j+1][i+1] = data[width*height+width/2*y+x];
+            pic[2][j][i] = data[width*height*5/4+width/2*y+x];
+            pic[2][j+1][i] = data[width*height*5/4+width/2*y+x];
+            pic[2][j][i+1] = data[width*height*5/4+width/2*y+x];
+            pic[2][j+1][i+1] = data[width*height*5/4+width/2*y+x];
+        }
+        return pic;
+    }
+
+    public byte[] pic2bytes(int[][][] pic) {
+        byte[] data = new byte[width*height*3/2];
+        for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
+            data[width*y+x] = (byte)pic[0][y][x];
+        }
+        for (int y = 0; y < height/2; ++y) for (int x = 0; x < width/2; ++x) {
+            int i = 2*x;
+            int j = 2*y;
+            byte avg1 = (byte)((pic[1][j][i] + pic[1][j+1][i] + pic[1][j][i+1] + pic[1][j+1][i+1])/4);
+            data[width*height+width/2*y+x] = avg1;
+            byte avg2 = (byte)((pic[2][j][i] + pic[2][j+1][i] + pic[2][j][i+1] + pic[2][j+1][i+1])/4);
+            data[width*height*5/4+width/2*y+x] = avg2;
+        }
+        return data;
+    }
+
+    public int[] yuv2rgb(byte[] data){
+        final int frameSize = width * height;
+        int[] rgb = new int[frameSize];
+
+        for (int j = 0, yp = 0; j < height; j++) {
+            int uvp = frameSize + (j >> 1) * width, u = 0, v = 0;
+            for (int i = 0; i < width; i++, yp++) {
+                int y = (0xff & ((int) data[yp])) - 16;
+                y = y<0? 0:y;
+
+                if ((i & 1) == 0) {
+                    v = (0xff & data[uvp++]) - 128;
+                    u = (0xff & data[uvp++]) - 128;
+                }
+
+                int y1192 = 1192 * y;
+                int r = (y1192 + 1634 * v);
+                int g = (y1192 - 833 * v - 400 * u);
+                int b = (y1192 + 2066 * u);
+
+                r = r<0? 0:r;
+                r = r>262143? 262143:r;
+                g = g<0? 0:g;
+                g = g>262143? 262143:g;
+                b = b<0? 0:b;
+                b = b>262143? 262143:b;
+
+                rgb[yp] = 0xff000000 | ((r << 6) & 0xff0000) | ((g >> 2) & 0xff00) | ((b >> 10) & 0xff);
+            }
+        }
+        return rgb;
+    }
+
+    public static double coeff(int x) {
+
+        if (x == 0)
+            return 1/Math.sqrt(2);
+
+        else if (x > 0)
+            return 1;
+
+        else
+            return -1;
+    }
+
+    public static double[][] DCT(int [][] x) {
+
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        // init dct array
+        double [][] dct = new double[N][N];
+
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                double val = 0;
+
+                for (int m = 0; m < N; m++) {
+                    for (int n = 0; n < N; n++) {
+
+                        double curr_pixel = x[m][n];
+
+                        double cos1 = Math.cos(((2*m+1)*Math.PI*i) / (2*N));
+                        double cos2 = Math.cos(((2*n+1)*Math.PI*j) / (2*N));
+
+                        val += curr_pixel * cos1 * cos2;
+
+                    }
+                }
+
+                val *= 1/Math.sqrt(2*N) * coeff(i) * coeff(j);
+
+                dct[i][j] = val;
+            }
+        }
+
+        return dct;
+    }
+
+    public static double[][] idct(double [][] x) {
+
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        // init dct array
+        double [][] idct = new double[N][N];
+
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                double val = 0;
+
+                for (int m = 0; m < N; m++) {
+                    for (int n = 0; n < N; n++) {
+
+                        double curr_pixel = x[m][n];
+
+                        double cos1 = Math.cos(((2*j+1)*Math.PI*m) / (2*N));
+                        double cos2 = Math.cos(((2*i+1)*Math.PI*n) / (2*N));
+
+                        val += curr_pixel * cos1 * cos2 * coeff(m) * coeff(n);
+
+                    }
+                }
+
+                val *= 1/Math.sqrt(2*N);
+
+                idct[i][j] = val;
+            }
+        }
+
+        return idct;
+    }
+
+    public static int [][] scaleQuantTable (int [][] qt, int qf) {
+
+        int N = qt.length;
+
+        double s = (qf < 50) ? 5000/qf:(200 - 2*qf);
+
+        int [][] t = new int [qt.length][qt[0].length];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                t[j][i] = (int)Math.floor((s * qt[j][i] + 50) / 100);
+            }
+        }
+
+        return t;
+
+    }
+
+    public static int [][] quantize (double [][] x, int [][] q) {
+
+        // input must be 8x8
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        int [][] B = new int [N][N];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                B[i][j] = (int)Math.round(x[i][j] / q[i][j]);
+            }
+        }
+
+        return B;
+
+    }
+
+    public static int [][] unquantize (int [][] x, int [][] q) {
+
+        // input must be 8x8
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        int [][] B = new int [N][N];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                B[i][j] = x[i][j] * q[i][j];
+            }
+        }
+
+        return B;
+
+    }
+
+    public static int [][] block_split (int [][] img, int row, int col) {
+
+        int img_row_start = 8*row;
+        int img_col_start = 8*col;
+
+        int height = img.length;
+        int width = img[0].length;
+
+        int [][] block = new int [8][8];
+
+        int block_row_end = Math.min(8, height - img_row_start);
+        int block_col_end = Math.min(8, width - img_col_start);
+
+
+        for (int i = 0; i < block_row_end; i++) {
+            for (int j = 0; j < block_col_end; j++) {
+
+                block[i][j] = img[img_row_start + i][img_col_start + j];
+            }
+        }
+
+        return block;
+    }
+
+    public static int[][] block_combine (int [][] img, int row, int col, double[][] block) {
+
+        int img_row_start = 8*row;
+        int img_col_start = 8*col;
+
+        int height = img.length;
+        int width = img[0].length;
+
+        int block_row_end = Math.min(8, height - img_row_start);
+        int block_col_end = Math.min(8, width - img_col_start);
+
+        for (int i = 0; i < block_row_end; i++) {
+            for (int j = 0; j < block_col_end; j++) {
+
+                img[img_row_start + i][img_col_start + j] = (int)block[i][j];
+            }
+        }
+
+        return img;
+    }
+
+    public static void print_mat_int (int [][] x) {
+
+        for (int i = 0; i < x.length; i++) {
+            for (int j = 0; j < x[0].length; j++) {
+
+                System.out.print(x[i][j]);
+                System.out.print(" ");
+            }
+
+            System.out.print("\n");
+        }
+
+        System.out.print("\n");
+    }
+
+    public static void print_mat_double (double [][] x) {
+
+        for (int i = 0; i < x.length; i++) {
+            for (int j = 0; j < x[0].length; j++) {
+
+                System.out.print(x[i][j]);
+                System.out.print(" ");
+            }
+
+            System.out.print("\n");
+        }
+
+        System.out.print("\n");
+    }
+    public static int[][][] process_img (int [][][] img, int [][] qty, int [][] qtc, int qf) {
+
+        int channel = img.length;
+        int height = img[0].length;
+        int width = img[0][0].length;
+
+        int [][] quanty = scaleQuantTable(qty, qf);
+        int [][] quantc = scaleQuantTable(qtc, qf);
+
+        for (int c = 0; c < channel; c++) {
+            for (int i = 0; i < Math.ceil(width/8); i++) {
+                for (int j = 0; j < Math.ceil(height/8); j++) {
+
+                    int [][] block = block_split(img[c], j, i);
+
+                    //double [][] dct = DCT(block);
+
+                    //int[][] Q = new int[8][8];
+                    /*
+                    if (c == 0) {
+                        Q = quantize(dct, quanty);
+                        Q = unquantize(Q, quanty);
+                    }
+                    else {
+                        Q = quantize(dct, quantc);
+                        Q = unquantize(Q, quantc);
+                    }
+                    */
+
+                    //double[][] idct = idct(dct);
+                    double[][] idct = new double[8][8];
+                    for (int x = 0; x < 8; ++x) for (int y = 0; y < 8; ++y) {
+                       idct[y][x] = block[y][x];
+                    }
+                    img[c] = block_combine(img[c], j, i, idct);
+
+                }
+            }
+        }
+        return img;
     }
 }

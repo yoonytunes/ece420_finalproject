@@ -34,10 +34,25 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     boolean previewing = false;
     private int width = 640;
     private int height = 480;
-    // Kernels
-    private double[][] kernelS = new double[][] {{-1,-1,-1},{-1,9,-1},{-1,-1,-1}};
-    private double[][] kernelX = new double[][] {{1,0,-1},{1,0,-1},{1,0,-1}};
-    private double[][] kernelY = new double[][] {{1,1,1},{0,0,0},{-1,-1,-1}};
+
+    int[][] QuantTableY = {{16, 11, 10, 16, 24, 40, 51, 61},
+            {12, 12, 14, 19, 26, 58, 60, 55},
+            {14, 13, 16, 24, 40, 57, 69, 56},
+            {14, 17, 22, 29, 51, 87, 80, 62},
+            {18, 22, 37, 56, 68, 109, 103, 77},
+            {24, 35, 55, 64, 81, 104, 113, 92},
+            {49, 64, 78, 87, 103, 121, 120, 101},
+            {72, 92, 95, 98, 112, 100, 103, 99}};
+
+
+    int[][] QuantTableC = {{17, 18, 24, 47, 99, 99, 99, 99},
+            {18, 21, 26, 66, 99, 99, 99, 99},
+            {24, 26, 56, 99, 99, 99, 99, 99},
+            {47, 66, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99},
+            {99, 99, 99, 99, 99, 99, 99, 99}};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -120,31 +135,54 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
 
         Matrix matrix = new Matrix();
         matrix.postRotate(90);
-        int retData[] = new int[width * height];
 
-        // Apply different processing methods
-        if(MainActivity.appFlag == 1){
-            byte[] histeqData = histEq(data, width, height);
-            retData = yuv2rgb(histeqData);
-        }
-        else if (MainActivity.appFlag == 2){
-
-            int[] sharpData = conv2(data, width, height, kernelS);
-            retData = merge(sharpData, sharpData);
-        }
-        else if (MainActivity.appFlag == 3){
-            int[] xData = conv2(data, width, height, kernelX);
-            int[] yData = conv2(data, width, height, kernelY);
-            retData = merge(xData, yData);
-        }
+        int[][][] pic = bytes2pic(data);
+        pic = process_img(pic, QuantTableY, QuantTableC, 50);
+        byte[] newdata = pic2bytes(pic);
+        int[] rgb = yuv2rgb(newdata);
 
         // Create ARGB Image, rotate and draw
-        Bitmap bmp = Bitmap.createBitmap(retData, width, height, Bitmap.Config.ARGB_8888);
+        Bitmap bmp = Bitmap.createBitmap(rgb, width, height, Bitmap.Config.ARGB_8888);
         bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), matrix, true);
         canvas.drawBitmap(bmp, new Rect(0,0, height, width), new Rect(0,0, canvas.getWidth(), canvas.getHeight()),null);
     }
 
-    // Helper function to convert YUV to RGB
+    public int[][][] bytes2pic(byte[] data) {
+        int[][][] pic = new int[3][height][width];
+        for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
+            pic[0][y][x] = data[width*y+x];
+        }
+        for (int y = 0; y < height/2; ++y) for (int x = 0; x < width/2; ++x) {
+            int i = 2*x;
+            int j = 2*y;
+            pic[1][j][i] = data[width*height+width/2*y+x];
+            pic[1][j+1][i] = data[width*height+width/2*y+x];
+            pic[1][j][i+1] = data[width*height+width/2*y+x];
+            pic[1][j+1][i+1] = data[width*height+width/2*y+x];
+            pic[2][j][i] = data[width*height*5/4+width/2*y+x];
+            pic[2][j+1][i] = data[width*height*5/4+width/2*y+x];
+            pic[2][j][i+1] = data[width*height*5/4+width/2*y+x];
+            pic[2][j+1][i+1] = data[width*height*5/4+width/2*y+x];
+        }
+        return pic;
+    }
+
+    public byte[] pic2bytes(int[][][] pic) {
+        byte[] data = new byte[width*height*3/2];
+        for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
+            data[width*y+x] = (byte)pic[0][y][x];
+        }
+        for (int y = 0; y < height/2; ++y) for (int x = 0; x < width/2; ++x) {
+            int i = 2*x;
+            int j = 2*y;
+            byte avg1 = (byte)((pic[1][j][i] + pic[1][j+1][i] + pic[1][j][i+1] + pic[1][j+1][i+1])/4);
+            data[width*height+width/2*y+x] = avg1;
+            byte avg2 = (byte)((pic[2][j][i] + pic[2][j+1][i] + pic[2][j][i+1] + pic[2][j+1][i+1])/4);
+            data[width*height*5/4+width/2*y+x] = avg2;
+        }
+        return data;
+    }
+
     public int[] yuv2rgb(byte[] data){
         final int frameSize = width * height;
         int[] rgb = new int[frameSize];
@@ -178,91 +216,267 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         return rgb;
     }
 
-    // Helper function to merge the results and convert GrayScale to RGB
-    public int[] merge(int[] xdata,int[] ydata){
-        int size = height * width;
-        int[] mergeData = new int[size];
-        for(int i=0; i<size; i++)
-        {
-            int p = (int)Math.sqrt((xdata[i] * xdata[i] + ydata[i] * ydata[i]) / 2);
-            mergeData[i] = 0xff000000 | p<<16 | p<<8 | p;
-        }
-        return mergeData;
+    public static double coeff(int x) {
+
+        if (x == 0)
+            return 1/Math.sqrt(2);
+
+        else if (x > 0)
+            return 1;
+
+        else
+            return -1;
     }
 
-    // Function for Histogram Equalization
-    public byte[] histEq(byte[] data, int width, int height){
-        byte[] histeqData = new byte[data.length];
-        int size = height * width;
-        int byte_size = 256;
+    public static double[][] DCT(int [][] x) {
 
-        // Perform Histogram Equalization
-        // Note that you only need to manipulate data[0:size] that corresponds to luminance
-        // The rest data[size:data.length] is for colorness that we handle for you
-        // *********************** START YOUR CODE HERE  **************************** //
+        if (x.length != x[0].length)
+            return null;
 
-        int[] hist = new int[byte_size];
-        for (int i = 0; i < size; ++i) hist[data[i] & 0x00FF]++;
+        int N = x.length;
 
-        int[] cdf = new int[byte_size];
-        cdf[0] = hist[0];
-        for (int i = 1; i < cdf.length; ++i) cdf[i] = cdf[i-1] + hist[i];
-
-        int min_idx = 0;
-        for (int i = 1; i < cdf.length; ++i) {
-            if (cdf[i] < cdf[min_idx]) min_idx = i;
-        }
-
-        for (int i = 0; i < size; ++i) {
-            histeqData[i] = (byte)((int)((cdf[data[i] & 0x00FF]-cdf[min_idx])*(byte_size-1)/(size-cdf[min_idx])));
-        }
+        // init dct array
+        double [][] dct = new double[N][N];
 
 
-        // *********************** End YOUR CODE HERE  **************************** //
-        // We copy the colorness part for you, do not modify if you want rgb images
-        for(int i=size; i<data.length; i++){
-            histeqData[i] = data[i];
-        }
-        return histeqData;
-    }
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
 
-    public int[] conv2(byte[] data, int width, int height, double kernel[][]){
-        // 0 is black and 255 is white.
-        int size = height * width;
-        int[] convData = new int[size];
+                double val = 0;
 
-        // Perform single channel 2D Convolution
-        // Note that you only need to manipulate data[0:size] that corresponds to luminance
-        // The rest data[size:data.length] is ignored since we only want grayscale output
-        // *********************** START YOUR CODE HERE  **************************** //
-        int[][] image = new int[height][width];
-        for (int i = 0; i < height; ++i) {
-            for (int j = 0; j < width; ++j) {
-                image[i][j] = data[i*width+j] & 0x00FF;
+                for (int m = 0; m < N; m++) {
+                    for (int n = 0; n < N; n++) {
+
+                        double curr_pixel = x[m][n];
+
+                        double cos1 = Math.cos(((2*m+1)*Math.PI*i) / (2*N));
+                        double cos2 = Math.cos(((2*n+1)*Math.PI*j) / (2*N));
+
+                        val += curr_pixel * cos1 * cos2;
+
+                    }
+                }
+
+                val *= 1/Math.sqrt(2*N) * coeff(i) * coeff(j);
+
+                dct[i][j] = val;
             }
         }
 
-        int kernel_height = kernel.length;
-        int kernel_width = kernel[0].length;
-        double[][] kernel_flip = new double[kernel_height][kernel_width];
-        for (int i = 0; i < kernel_height; ++i) for (int j = 0; j < kernel_width; ++j) {
-            kernel_flip[i][j] = kernel[kernel_height-1-i][kernel_width-1-j];
-        }
+        return dct;
+    }
 
-        int kernel_y_inc = kernel_height/2-1;
-        int kernel_x_inc = kernel_width/2-1;
-        for (int i = 0; i < height; ++i) for (int j = 0; j < width; ++j) {
-            for (int y = 0; y < kernel_height; ++y) for (int x = 0; x < kernel_width; ++x) {
-                int k = i+y-kernel_y_inc;
-                int l = j+x-kernel_x_inc;
-                if (k < 0 || k >= height || l < 0 || l >= width) continue;
-                convData[i*width+j] += kernel[y][x] * image[i+y-kernel_y_inc][j+x-kernel_x_inc];
+    public static int[][] idct(double [][] x) {
+
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        // init dct array
+        int [][] idct = new int[N][N];
+
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                double val = 0;
+
+                for (int m = 0; m < N; m++) {
+                    for (int n = 0; n < N; n++) {
+
+                        double curr_pixel = x[m][n];
+
+                        double cos1 = Math.cos(((2*j+1)*Math.PI*m) / (2*N));
+                        double cos2 = Math.cos(((2*i+1)*Math.PI*n) / (2*N));
+
+                        val += curr_pixel * cos1 * cos2 * coeff(m) * coeff(n);
+
+                    }
+                }
+
+                val *= 1/Math.sqrt(2*N);
+
+                idct[i][j] = (int)val;
             }
         }
 
+        return idct;
+    }
 
-        // *********************** End YOUR CODE HERE  **************************** //
-        return convData;
+    public static int [][] scaleQuantTable (int [][] qt, int qf) {
+
+        int N = qt.length;
+
+        double s = (qf < 50) ? 5000/qf:(200 - 2*qf);
+
+        int [][] t = new int [qt.length][qt[0].length];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                t[j][i] = (int)Math.floor((s * qt[j][i] + 50) / 100);
+            }
+        }
+
+        return t;
+
+    }
+
+    public static int [][] quantize (double [][] x, int [][] q) {
+
+        // input must be 8x8
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        int [][] B = new int [N][N];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                B[i][j] = (int)Math.round(x[i][j] / q[i][j]);
+            }
+        }
+
+        return B;
+
+    }
+
+    public static double [][] unquantize (int [][] x, int [][] q) {
+
+        // input must be 8x8
+        if (x.length != x[0].length)
+            return null;
+
+        int N = x.length;
+
+        double [][] B = new double [N][N];
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                B[i][j] = x[i][j] * q[i][j];
+            }
+        }
+
+        return B;
+
+    }
+
+    public static int [][] block_split (int [][] img, int row, int col) {
+
+        int img_row_start = 8*row;
+        int img_col_start = 8*col;
+
+        int height = img.length;
+        int width = img[0].length;
+
+        int [][] block = new int [8][8];
+
+        int block_row_end = Math.min(8, height - img_row_start);
+        int block_col_end = Math.min(8, width - img_col_start);
+
+
+        for (int i = 0; i < block_row_end; i++) {
+            for (int j = 0; j < block_col_end; j++) {
+
+                block[i][j] = img[img_row_start + i][img_col_start + j];
+            }
+        }
+
+        return block;
+    }
+
+    public static int[][] block_combine (int[][] new_img, int row, int col, int[][] block) {
+
+        int img_row_start = 8*row;
+        int img_col_start = 8*col;
+
+        int height = new_img.length;
+        int width = new_img[0].length;
+
+        int block_row_end = Math.min(8, height - img_row_start);
+        int block_col_end = Math.min(8, width - img_col_start);
+
+        for (int i = 0; i < block_row_end; i++) {
+            for (int j = 0; j < block_col_end; j++) {
+
+                new_img[img_row_start + i][img_col_start + j] = block[i][j];
+            }
+        }
+
+        return new_img;
+    }
+
+    public static void print_mat_int (int [][] x) {
+
+        for (int i = 0; i < x.length; i++) {
+            for (int j = 0; j < x[0].length; j++) {
+
+                System.out.print(x[i][j]);
+                System.out.print(" ");
+            }
+
+            System.out.print("\n");
+        }
+
+        System.out.print("\n");
+    }
+
+    public static void print_mat_double (double [][] x) {
+
+        for (int i = 0; i < x.length; i++) {
+            for (int j = 0; j < x[0].length; j++) {
+
+                System.out.print(x[i][j]);
+                System.out.print(" ");
+            }
+
+            System.out.print("\n");
+        }
+
+        System.out.print("\n");
+    }
+    public static int[][][] process_img (int [][][] img, int [][] qty, int [][] qtc, int qf) {
+
+        int channel = img.length;
+        int height = img[0].length;
+        int width = img[0][0].length;
+
+        int [][][] new_img = new int [channel][height][width];
+
+        int [][] quanty = scaleQuantTable(qty, qf);
+        int [][] quantc = scaleQuantTable(qtc, qf);
+
+        for (int c = 0; c < channel; c++) {
+            for (int i = 0; i < Math.ceil(width/8); i++) {
+                for (int j = 0; j < Math.ceil(height/8); j++) {
+
+                    int [][] block = block_split(img[c], j, i);
+                    /*
+                    double [][] dct = DCT(block);
+
+                    int[][] Q;
+                    double [][] uQ;
+
+                    if (c == 0) {
+                        Q = quantize(dct, quanty);
+                        uQ = unquantize(Q, quanty);
+                    }
+                    else {
+                        Q = quantize(dct, quantc);
+                        uQ = unquantize(Q, quantc);
+                    }
+                    int[][] idct = idct(uQ);
+                    */
+                    new_img[c] = block_combine(new_img[c], j, i, block);
+
+                }
+            }
+        }
+        return new_img;
     }
 
 }
