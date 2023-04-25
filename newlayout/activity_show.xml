@@ -19,7 +19,7 @@
         android:text="Compressed Image"
         android:textAppearance="@style/TextAppearance.AppCompat.Title" />
 
-    <SurfaceView
+    <ImageView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_above="@+id/Helper"
@@ -28,11 +28,11 @@
         android:layout_alignParentEnd="true"
         android:layout_below="@+id/HETitle" />
 
-    <SurfaceView
+    <ImageView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
-        android:id="@+id/ViewHisteq"
+        android:id="@+id/ViewCompressed"
         android:layout_alignParentEnd="true"
         android:layout_below="@+id/Helper"
         android:layout_alignParentBottom="true" />
