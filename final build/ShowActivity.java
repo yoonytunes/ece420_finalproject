@@ -21,6 +21,8 @@ public class ShowActivity extends AppCompatActivity {
     private TextView qfText;
     private TextView ratioText;
     private String osPath = android.os.Environment.getExternalStorageDirectory() + "";
+    public String ogPath;
+    public String compressedPath;
 
     public int qf = MainActivity.qf;
 
@@ -46,12 +48,16 @@ public class ShowActivity extends AppCompatActivity {
         // Read image into image view
         Bitmap bitmap;
         if (MainActivity.app == 1) {
-            String path = osPath + "/Download/kitten.png";
-            java.io.File imgFile = new java.io.File(path);
+            ogPath = osPath + "/Download/kitten.png";
+            compressedPath = osPath + "/Download/kitten_compressed.bin";
+            java.io.File imgFile = new java.io.File(ogPath);
             bitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
         }
         else {
             bitmap = CameraActivity.pic;
+            ogPath = osPath + "/Download/your_picture.png";
+            compressedPath = osPath + "/Download/your_picture_compressed.bin";
+            new saveImage().execute(bitmap);
         }
         originalView.setImageBitmap(bitmap);
 
@@ -59,18 +65,28 @@ public class ShowActivity extends AppCompatActivity {
         new Compress().execute(bitmap);
     }
 
+    public class saveImage extends AsyncTask<Bitmap, Integer, Integer> {
+        protected Integer doInBackground(Bitmap... bitmap) {
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(ogPath)) {
+                bitmap[0].compress(Bitmap.CompressFormat.PNG, 100, out);
+            } catch (java.io.IOException e) {e.printStackTrace();}
+            return 1;
+        }
+        protected void onPostExecute(Bitmap bitmap) {}
+    }
+
     public class Compress extends AsyncTask<Bitmap, Integer, Bitmap> {
         protected Bitmap doInBackground(Bitmap... bitmap) {
             double[][][] img = image.bitmap2img(bitmap[0]);
-            image.compress_img(img, qf, osPath + "/Download/kitten_compressed.bin");
-            img = image.decompress_img(osPath + "/Download/kitten_compressed.bin");
+            image.compress_img(img, qf, compressedPath);
+            img = image.decompress_img(compressedPath);
             return image.img2bitmap(img);
         }
 
         protected void onPostExecute(Bitmap bitmap) {
             ShowActivity.compressedView.setImageBitmap(bitmap);
-            java.io.File original_file = new java.io.File(osPath + "/Download/kitten.png");
-            java.io.File compressed_file = new java.io.File(osPath + "/Download/kitten_compressed.bin");
+            java.io.File original_file = new java.io.File(ogPath);
+            java.io.File compressed_file = new java.io.File(compressedPath);
             ratioText.setText(String.valueOf(Math.floor(((double)original_file.length()/compressed_file.length())*100)/100));
         }
     }
