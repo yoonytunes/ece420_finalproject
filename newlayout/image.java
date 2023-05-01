@@ -303,4 +303,75 @@ public class image {
 
         return img;
     }
+
+    public static int [] zigzag (int [][] x) {
+
+        int N = 8;
+        int [] s = new int[N*N];
+
+
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+
+                int k = i + j;
+                float m,l;
+
+                if (k < 8) {
+
+                    l = k*(k+1) / 2;
+
+                    if (k%2 == 0)
+                        m = l + i;
+                    
+                    else
+                        m = l + j;
+                        
+                }
+
+                else if (k == 8)
+                    m = 35 + i;
+
+                else {
+                    
+                    k = 15 - k;
+                    l = 71 - (k*(k+1))/2;
+
+                    if (k%2 == 0) 
+                        m = l - i;
+                    
+                    else
+                        m = l - j;
+
+                }
+
+                s[(int)m] = x[j][i];
+            }
+        }
+
+        return s;
+    }
+
+    public static int [][] runLengthEncode (int [] x) {
+
+        int [][] s = new int[64][2];
+
+        int rl = 0;
+
+        for (int i = 0; i < 64; i++) {
+
+            int amplitude = x[i];
+
+            if (amplitude == 0) {
+                rl +=1;
+                continue;
+            }
+
+            s[i][0] = rl;
+            s[i][1] = amplitude;
+            rl = 0;
+        }
+
+        return s;
+    }
+
 }
