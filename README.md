@@ -1,4 +1,4 @@
-# **RAW to JPG Converter App**
+# **RAW to JPG Image Compression App**
 
 Although we live in a data-driven world, it’s ironic that we don’t always have enough storage
 to keep every single portion of it in our systems. Hence, engineers tend to utilize a widely
